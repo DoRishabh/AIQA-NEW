@@ -171,6 +171,12 @@ IMPORTANT:
 - Never explain anything
 - Never wrap JSON inside triple backticks
 
+COMMON BUSINESS MAPPINGS:
+- revenue = SALES_AMOUNT
+- sales = SALES_AMOUNT
+- total revenue = SUM(SALES_AMOUNT)
+- total sales = SUM(SALES_AMOUNT)
+
 VALID CHART TYPES:
 bar, line, pie, doughnut, area, scatter, table, metric
 
