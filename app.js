@@ -12,9 +12,6 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(__dirname));
 
-// =========================
-// ENVIRONMENT CHECKS
-// =========================
 const requiredEnvVars = [
     'GROQ_API_KEY',
     'GROQ_MODEL',
@@ -33,16 +30,10 @@ requiredEnvVars.forEach((key) => {
     }
 });
 
-// =========================
-// INITIALIZE GROQ
-// =========================
 const groq = new Groq({
     apiKey: process.env.GROQ_API_KEY
 });
 
-// =========================
-// SNOWFLAKE CONFIG
-// =========================
 const snowflakeConfig = {
     account: process.env.SNOWFLAKE_ACCOUNT,
     username: process.env.SNOWFLAKE_USER,
@@ -53,15 +44,10 @@ const snowflakeConfig = {
     role: process.env.SNOWFLAKE_ROLE
 };
 
-// =========================
-// CONNECTION CACHE
-// =========================
 let snowflakeConnection = null;
 
-// =========================
-// CONNECT TO SNOWFLAKE
-// =========================
 async function getSnowflakeConnection() {
+
     return new Promise((resolve, reject) => {
 
         if (snowflakeConnection && snowflakeConnection.isUp()) {
@@ -71,6 +57,7 @@ async function getSnowflakeConnection() {
         const connection = snowflake.createConnection(snowflakeConfig);
 
         connection.connect((err, conn) => {
+
             if (err) {
                 console.error('❌ Snowflake connection error:', err);
                 reject(err);
@@ -83,9 +70,6 @@ async function getSnowflakeConnection() {
     });
 }
 
-// =========================
-// EXECUTE QUERY
-// =========================
 async function executeQuery(sqlText) {
 
     const connection = await getSnowflakeConnection();
@@ -93,6 +77,7 @@ async function executeQuery(sqlText) {
     return new Promise((resolve, reject) => {
 
         connection.execute({
+
             sqlText,
 
             complete: (err, stmt, rows) => {
@@ -108,15 +93,12 @@ async function executeQuery(sqlText) {
     });
 }
 
-// =========================
-// FETCH DATABASE SCHEMA
-// =========================
 async function getDatabaseSchema() {
 
     try {
 
         const sql = `
-            SELECT 
+            SELECT
                 TABLE_NAME,
                 COLUMN_NAME,
                 DATA_TYPE
@@ -150,9 +132,6 @@ async function getDatabaseSchema() {
     }
 }
 
-// =========================
-// GENERATE SQL + CHART
-// =========================
 async function generateQueryAndChart(userQuery, schema) {
 
     const schemaDescription = Object.entries(schema)
@@ -190,6 +169,7 @@ IMPORTANT:
 - Add LIMIT where appropriate
 - Never return markdown
 - Never explain anything
+- Never wrap JSON inside triple backticks
 
 VALID CHART TYPES:
 bar, line, pie, doughnut, area, scatter, table, metric
@@ -230,9 +210,14 @@ RETURN FORMAT:
             max_tokens: 1024
         });
 
-        const content = response.choices[0].message.content.trim();
+        let content = response.choices[0].message.content.trim();
 
         console.log('🤖 Raw AI Response:', content);
+
+        content = content
+            .replace(/```json/g, '')
+            .replace(/```/g, '')
+            .trim();
 
         const jsonMatch = content.match(/\{[\s\S]*\}/);
 
@@ -240,7 +225,13 @@ RETURN FORMAT:
             throw new Error('No valid JSON found in AI response');
         }
 
-        return JSON.parse(jsonMatch[0]);
+        const parsed = JSON.parse(jsonMatch[0]);
+
+        if (!parsed.sql) {
+            throw new Error('Generated SQL missing');
+        }
+
+        return parsed;
 
     } catch (error) {
 
@@ -249,17 +240,11 @@ RETURN FORMAT:
     }
 }
 
-// =========================
-// ROUTES
-// =========================
-
-// HOME PAGE
 app.get('/', (req, res) => {
 
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// HEALTH CHECK
 app.get('/api/health', async (req, res) => {
 
     try {
@@ -283,7 +268,6 @@ app.get('/api/health', async (req, res) => {
     }
 });
 
-// GET SCHEMA
 app.get('/api/schema', async (req, res) => {
 
     try {
@@ -304,7 +288,6 @@ app.get('/api/schema', async (req, res) => {
     }
 });
 
-// MAIN QUERY API
 app.post('/api/query', async (req, res) => {
 
     try {
@@ -312,6 +295,7 @@ app.post('/api/query', async (req, res) => {
         const { query } = req.body;
 
         if (!query) {
+
             return res.status(400).json({
                 success: false,
                 error: 'Query is required'
@@ -320,25 +304,21 @@ app.post('/api/query', async (req, res) => {
 
         console.log('📥 User Query:', query);
 
-        // STEP 1: GET SCHEMA
         const schema = await getDatabaseSchema();
 
-        // STEP 2: GENERATE SQL
         const aiResponse = await generateQueryAndChart(query, schema);
 
         console.log('🧠 AI Response:', aiResponse);
 
-        // STEP 3: EXECUTE SQL
         const data = await executeQuery(aiResponse.sql);
 
         console.log(`✅ Returned ${data.length} rows`);
 
-        // STEP 4: SEND RESPONSE
         res.json({
             success: true,
             sql: aiResponse.sql,
-            chartType: aiResponse.chartType,
-            chartConfig: aiResponse.chartConfig,
+            chartType: aiResponse.chartType || 'table',
+            chartConfig: aiResponse.chartConfig || {},
             data
         });
 
@@ -354,7 +334,6 @@ app.post('/api/query', async (req, res) => {
     }
 });
 
-// EXECUTE RAW SQL
 app.post('/api/execute-sql', async (req, res) => {
 
     try {
@@ -362,6 +341,7 @@ app.post('/api/execute-sql', async (req, res) => {
         const { sql } = req.body;
 
         if (!sql) {
+
             return res.status(400).json({
                 success: false,
                 error: 'SQL is required'
@@ -386,9 +366,6 @@ app.post('/api/execute-sql', async (req, res) => {
     }
 });
 
-// =========================
-// START SERVER
-// =========================
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
