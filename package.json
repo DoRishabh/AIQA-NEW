@@ -1,0 +1,23 @@
+{
+  "name": "snowflake-analytics-dashboard",
+  "version": "1.0.0",
+  "description": "Interactive analytics dashboard with Snowflake and AI-powered query generation",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "nodemon app.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "groq-sdk": "^0.5.0",
+    "snowflake-sdk": "^1.11.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
