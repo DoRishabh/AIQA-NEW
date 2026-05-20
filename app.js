@@ -164,12 +164,21 @@ YOUR TASK:
 3. Return ONLY valid JSON
 
 IMPORTANT:
-- Always use fully qualified table names
+- ONLY use columns that exist in AVAILABLE TABLES
+- NEVER invent column names
+- NEVER invent table aliases
+- NEVER use SHIPDATEKEY unless it exists
+- NEVER use ORDERDATE unless it exists
+- NEVER use DATE columns unless they exist in schema
+- If no date column exists, DO NOT generate time-series queries
+- If user asks for trend/growth over time but no date column exists:
+  - return a table chart instead
+  - or group by PRODUCTKEY
+- Use only fully qualified table names
 - Use Snowflake SQL syntax
 - Add LIMIT where appropriate
 - Never return markdown
 - Never explain anything
-- Never wrap JSON inside triple backticks
 
 COMMON BUSINESS MAPPINGS:
 - revenue = SALES_AMOUNT
