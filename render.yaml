@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: snowflake-analytics-dashboard
+    env: node
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: SNOWFLAKE_ACCOUNT
+        sync: false
+      - key: SNOWFLAKE_USER
+        sync: false
+      - key: SNOWFLAKE_PASSWORD
+        sync: false
+      - key: SNOWFLAKE_DATABASE
+        sync: false
+      - key: SNOWFLAKE_SCHEMA
+        sync: false
+      - key: SNOWFLAKE_WAREHOUSE
+        sync: false
+      - key: SNOWFLAKE_ROLE
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        sync: false
+      - key: PORT
+        value: 3000
