@@ -8,8 +8,7 @@ const path = require('path');
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public'));
-
+app.use(express.static(__dirname));
 // Initialize Groq client
 const groq = new Groq({
     apiKey: process.env.GROQ_API_KEY
@@ -247,7 +246,7 @@ app.get('/api/health', async (req, res) => {
 
 // Serve frontend
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    res.sendFile(path.join(__dirname, 'index.html'))
 });
 
 const PORT = process.env.PORT || 3000;
