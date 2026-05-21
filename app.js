@@ -350,6 +350,35 @@ PIE RULE:
 - category distribution only
 
 ==================================================
+🧠 RESPONSE CACHE ENGINE (NEW)
+==================================================
+
+IF an EXACT SAME user prompt is received again:
+AND schema + table context has NOT changed:
+
+→ MUST RETURN EXACT SAME OUTPUT:
+   - same SQL
+   - same chartType
+   - same chartConfig
+
+→ STRICTLY DO NOT:
+   - regenerate SQL
+   - reclassify intent
+   - change grouping logic
+   - change date mapping
+   - reorder fields
+
+CACHE KEY DEFINITION:
+- normalized lowercase prompt
+- trimmed whitespace
+- remove punctuation differences
+- same schema context
+
+IF cache match exists:
+→ return cached JSON immediately
+→ skip ALL reasoning steps
+
+==================================================
 🚨 DUPLICATE PREVENTION ENGINE (FINAL FIX)
 ==================================================
 
