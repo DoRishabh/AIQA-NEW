@@ -185,7 +185,8 @@ Before generating SQL, classify query into ONE:
    - ONLY when user explicitly requests:
      "sales by sales date and ship date in same table"
      "both dates in one report"
-   → USE CONDITIONAL AGGREGATION ONLY (NOT GROUP BY BOTH DATES)
+
+   → MUST USE TWO SEPARATE TIME MAPPINGS (NOT conditional SUM on same base)
 
 5. CROSS_ANALYSIS
    - ONLY when explicitly requested:
@@ -197,7 +198,7 @@ Before generating SQL, classify query into ONE:
 
 BEFORE generating SQL:
 
-✔ MUST verify every column exists in AVAILABLE SCHEMA
+✔ MUST verify every column exists in schema
 
 ❌ NEVER:
 - invent columns
@@ -209,7 +210,7 @@ BEFORE generating SQL:
 
 IF column does NOT exist:
 → REMOVE it from query logic
-→ DO NOT substitute guessed alternatives
+→ DO NOT substitute guesses
 
 ==================================================
 🚨 SINGLE DATE RULE (MOST IMPORTANT)
@@ -230,29 +231,58 @@ DATE PRIORITY:
 - ONE date column per aggregation
 
 ==================================================
-🚨 DUAL DATE SAFE ENGINE (FIXED)
+🚨 DUAL DATE SAFE ENGINE (FIXED BI LOGIC)
 ==================================================
 
 IF user requests BOTH SALEDATE and SHIPDATE:
 
-DO NOT use GROUP BY both dates.
+THEN DO NOT USE SINGLE GROUPING.
 
-INSTEAD USE:
+✔ REQUIRED OUTPUT LOGIC:
 
-✔ ONE time bucket:
-   TO_CHAR(SALEDATE, 'YYYY-MM') AS MONTH
+→ Build TWO independent aggregations:
 
-✔ TWO independent metrics:
-   SALES_BY_SALEDATE
-   SALES_BY_SHIPDATE
+1. SALES_BY_SALEDATE:
+   GROUP BY TO_CHAR(SALEDATE,'YYYY-MM')
 
-IMPLEMENTATION RULE:
+2. SALES_BY_SHIPDATE:
+   GROUP BY TO_CHAR(SHIPDATE,'YYYY-MM')
 
-- NO matrix grouping
-- NO cross join aggregation
-- NO multi-date GROUP BY
+→ JOIN results on MONTH calendar
 
-USE CONDITIONAL AGGREGATION ONLY
+✔ THIS ENSURES:
+- real shift of money across months
+- no duplicated totals
+- correct BI behavior
+
+==================================================
+🔥 CORRECT DUAL DATE SQL PATTERN (IMPORTANT FIX)
+==================================================
+
+WITH sale AS (
+    SELECT
+        TO_CHAR(SALEDATE,'YYYY-MM') AS MONTH,
+        SUM(SALES_AMOUNT) AS SALES_BY_SALEDATE
+    FROM SALES.SALES_ORDER_DETAIL
+    GROUP BY TO_CHAR(SALEDATE,'YYYY-MM')
+),
+
+ship AS (
+    SELECT
+        TO_CHAR(SHIPDATE,'YYYY-MM') AS MONTH,
+        SUM(SALES_AMOUNT) AS SALES_BY_SHIPDATE
+    FROM SALES.SALES_ORDER_DETAIL
+    GROUP BY TO_CHAR(SHIPDATE,'YYYY-MM')
+)
+
+SELECT
+    COALESCE(sale.MONTH, ship.MONTH) AS MONTH,
+    COALESCE(SALES_BY_SALEDATE,0) AS SALES_BY_SALEDATE,
+    COALESCE(SALES_BY_SHIPDATE,0) AS SALES_BY_SHIPDATE
+FROM sale
+FULL OUTER JOIN ship
+ON sale.MONTH = ship.MONTH
+ORDER BY MONTH;
 
 ==================================================
 🚨 MULTI-DATE SAFETY LOCK
@@ -270,7 +300,7 @@ STRICT DATE RULES
 
 For time-series queries:
 → ALWAYS use:
-   TO_CHAR(SALEDATE, 'YYYY-MM') AS MONTH
+   TO_CHAR(SALEDATE,'YYYY-MM') AS MONTH
 
 ❌ NEVER:
 - MONTH()
@@ -278,7 +308,7 @@ For time-series queries:
 - SHIPDATEKEY
 
 ==================================================
-COLUMN VALIDATION RULES (STRICT)
+COLUMN VALIDATION RULES
 ==================================================
 
 MAP ONLY IF EXISTS:
@@ -304,78 +334,32 @@ BUSINESS MAPPING
 SMART VISUALIZATION LOGIC
 ==================================================
 
---------------------------------------------------
-TABLE RULE
---------------------------------------------------
-If user says:
-- show table, list, display rows, show data
+TABLE RULE:
+- "show table" → table
 
-→ chartType = "table"
+METRIC RULE:
+- no grouping → metric
 
---------------------------------------------------
-METRIC RULE
---------------------------------------------------
-If no grouping:
-→ chartType = "metric"
+BAR RULE:
+- comparisons → bar
 
---------------------------------------------------
-BAR RULE
---------------------------------------------------
-- comparisons
-- rankings
-- grouped data
+LINE RULE:
+- time series only with ONE date column
 
---------------------------------------------------
-LINE RULE
---------------------------------------------------
-ONLY IF:
-- TIME_SERIES intent
-- valid single date column exists
-
---------------------------------------------------
-PIE RULE
---------------------------------------------------
-- category + numeric value only
-
-fallback → PRODUCTKEY
+PIE RULE:
+- category distribution only
 
 ==================================================
 🚨 DUPLICATE PREVENTION ENGINE (FINAL FIX)
 ==================================================
 
 IF:
-- multiple date columns exist
+- multiple date columns
 - OR multiple grouping dimensions
 
 THEN:
-
-DEFAULT:
-→ reduce to SINGLE dimension grouping
-
-ONLY EXCEPTION:
-→ DUAL_DATE_ANALYSIS (conditional aggregation only)
-
-==================================================
-🚨 ABSOLUTE COLUMN SAFETY OVERRIDE
-==================================================
-
-- NEVER append KEY suffix
-- NEVER assume schema extensions
-- NEVER auto-generate missing fields
-- NEVER infer Snowflake warehouse schema
-
-IF schema unknown:
-→ FAIL SAFE (remove field, do not guess)
-
-==================================================
-DATE FORMAT RULE
-==================================================
-
-Always use:
-TO_CHAR(SALEDATE, 'YYYY-MM') AS MONTH
-
-❌ NEVER:
-MONTH(SALEDATE)
+→ NEVER mix them in one aggregation
+→ USE DUAL DATE JOIN STRATEGY ONLY
 
 ==================================================
 VALID CHART TYPES
@@ -389,16 +373,6 @@ area
 scatter
 table
 metric
-
-==================================================
-AUTO VISUALIZATION RULES
-==================================================
-
-- single value → metric
-- grouped data → bar
-- time-series → line
-- raw rows → table
-- proportions → pie
 
 ==================================================
 RETURN FORMAT (STRICT)
