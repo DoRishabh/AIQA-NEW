@@ -181,11 +181,15 @@ Before generating SQL, classify query into ONE:
    - "sales by product/category"
    → GROUP BY ONE DIMENSION ONLY
 
-4. CROSS_ANALYSIS (STRICT CONTROL)
-   - ONLY when user explicitly says:
-     "compare", "vs", "against", "difference between", "both X and Y"
+4. DUAL_DATE_ANALYSIS (NEW FIX)
+   - ONLY when user explicitly requests:
+     "sales by sales date and ship date in same table"
+     "both dates in one report"
+   → USE CONDITIONAL AGGREGATION (NOT GROUP BY BOTH DATES)
 
-   → ONLY THEN allow multiple date columns
+5. CROSS_ANALYSIS (STRICT CONTROL)
+   - ONLY when user explicitly says:
+     "compare", "vs", "against", "difference between"
 
 ==================================================
 STRICT SQL + SCHEMA RULES
@@ -207,7 +211,7 @@ STRICT SQL + SCHEMA RULES
 - Never markdown
 
 ==================================================
-🚨 SINGLE DATE DEFAULT RULE (MOST IMPORTANT FIX)
+🚨 SINGLE DATE DEFAULT RULE
 ==================================================
 
 - ALWAYS use ONLY ONE date column unless CROSS_ANALYSIS is explicitly triggered
@@ -215,21 +219,47 @@ STRICT SQL + SCHEMA RULES
 DATE PRIORITY:
 1. SALEDATE (DEFAULT ALWAYS)
 2. ORDERDATE
-3. SHIPDATE (ONLY if explicitly requested)
+3. SHIPDATE (ONLY if explicitly requested standalone)
 
-🚫 NEVER DO:
-- GROUP BY SALEDATE + SHIPDATE together by default
+🚫 NEVER:
+- GROUP BY SALEDATE + SHIPDATE together
 
-✔ ALWAYS DO:
-- GROUP BY ONLY ONE date column
+✔ ALWAYS:
+- ONE date column per aggregation
 
 ==================================================
-🚨 MULTI-DATE SAFETY LOCK
+🚨 DUAL DATE SAFE OUTPUT RULE (NEW IMPORTANT FIX)
 ==================================================
 
-IF query contains more than one date field (SALEDATE + SHIPDATE):
+IF user requests BOTH SALEDATE and SHIPDATE in same table:
 
-AND intent != CROSS_ANALYSIS:
+THEN DO NOT GROUP BY BOTH DATES.
+
+USE CONDITIONAL AGGREGATION:
+
+→ ONE time bucket (MONTH)
+→ TWO independent measures:
+
+   SALES_BY_SALEDATE
+   SALES_BY_SHIPDATE
+
+==================================================
+EXAMPLE LOGIC (INTERNAL RULE)
+==================================================
+
+Instead of:
+❌ GROUP BY SALEDATE, SHIPDATE
+
+Use:
+✔ GROUP BY MONTH
+✔ SUM(CASE WHEN SALEDATE EXISTS ...)
+✔ SUM(CASE WHEN SHIPDATE EXISTS ...)
+
+==================================================
+MULTI-DATE SAFETY LOCK
+==================================================
+
+IF query contains multiple date fields AND intent != CROSS_ANALYSIS:
 
 → IGNORE SHIPDATE
 → USE ONLY SALEDATE
@@ -239,14 +269,11 @@ AND intent != CROSS_ANALYSIS:
 STRICT DATE RULES
 ==================================================
 
-- NEVER guess date columns
-- NEVER use SHIPDATEKEY unless exists
-
 If user asks:
 - monthly / trend / over time
 
 THEN:
-→ USE TO_CHAR(SALEDATE, 'YYYY-MM')
+→ TO_CHAR(SALEDATE, 'YYYY-MM') AS MONTH
 
 NEVER USE:
 MONTH()
@@ -255,7 +282,6 @@ MONTH()
 COLUMN VALIDATION RULES
 ==================================================
 
-If column not found:
 - CATEGORY → PRODUCTKEY
 - PRODUCTCATEGORY → PRODUCTKEY
 - CUSTOMERNAME → NEVER use
@@ -287,8 +313,6 @@ If user says:
 METRIC RULE
 --------------------------------------------------
 If no grouping:
-- total sales / revenue / KPI
-
 → chartType = "metric"
 
 --------------------------------------------------
@@ -296,7 +320,6 @@ BAR RULE
 --------------------------------------------------
 - comparisons
 - rankings
-- grouped categories
 
 --------------------------------------------------
 LINE RULE
@@ -310,8 +333,6 @@ PIE RULE
 --------------------------------------------------
 - category + numeric value only
 
-fallback → PRODUCTKEY
-
 ==================================================
 🚨 DUPLICATE PREVENTION ENGINE
 ==================================================
@@ -319,16 +340,11 @@ fallback → PRODUCTKEY
 If:
 - multiple date columns exist
 - OR joins exist
-- OR grouping dimensions > 1
+- OR grouping > 1 dimension
 
 THEN:
-
-DEFAULT BEHAVIOR:
-→ reduce to SINGLE dimension grouping
-→ prevent duplicated aggregation
-
-OPTIONAL (ONLY CROSS_ANALYSIS):
-→ allow matrix view
+→ reduce to SINGLE safe dimension
+→ OR use DUAL_DATE_ANALYSIS logic (conditional aggregation only)
 
 ==================================================
 DATE FORMAT RULE
