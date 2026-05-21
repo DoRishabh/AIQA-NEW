@@ -170,7 +170,6 @@ STRICT SQL + SCHEMA RULES
 - ONLY use tables and columns that exist in AVAILABLE TABLES
 - NEVER invent column names
 - NEVER invent table aliases
-- NEVER use columns not present in schema
 - NEVER assume relationships between tables
 - NEVER reference invalid identifiers
 - NEVER generate incomplete SQL
@@ -187,51 +186,68 @@ STRICT SQL + SCHEMA RULES
 - Never return markdown
 
 ==================================================
+DUPLICATE SAFETY RULE (CRITICAL FIX)
+==================================================
+
+- If multiple date columns exist (e.g., SALEDATE, SHIPDATE):
+  → NEVER group by more than ONE date column unless explicitly requested
+
+- Default business logic:
+  → USE ONLY SALEDATE as primary date for analysis
+
+- SHIPDATE must only be used if user explicitly asks:
+  "shipping analysis", "delivery analysis", "shipment trends"
+
+- NEVER combine SALEDATE + SHIPDATE in same aggregation unless explicitly required
+
+- If multiple date columns are used:
+  → MUST NOT produce duplicated totals across groups
+  → MUST validate aggregation integrity
+
+==================================================
 STRICT DATE RULES
 ==================================================
 
 - NEVER use SHIPDATEKEY unless it exists
 - NEVER use ORDERDATE unless it exists
-- NEVER use DATE columns unless they exist in schema
-- Before generating time-series SQL:
-  - VERIFY the date column exists
+- NEVER guess any date column
+
+DATE PRIORITY ORDER:
+1. SALEDATE (PRIMARY)
+2. ORDERDATE
+3. SHIPDATE (ONLY if explicitly requested)
+
+TREND RULES:
+- ONLY allow line/area charts if valid date column exists
 - If no valid date column exists:
-  - DO NOT generate trend/time-series queries
-  - DO NOT generate line charts
-  - fallback to table or grouped bar chart
-- NEVER guess date fields
+  → fallback to table or bar chart
+
+MULTI-DATE RULE:
+- If user does NOT explicitly request comparison:
+  → DO NOT use multiple date columns
+  → ALWAYS choose ONE primary date column
 
 ==================================================
 STRICT COLUMN VALIDATION RULES
 ==================================================
 
 Before generating SQL:
-- Verify EVERY column exists in AVAILABLE TABLES
-
-If requested columns do NOT exist:
-- fallback intelligently
+- Verify EVERY column exists in schema
 
 Fallback rules:
-- If CATEGORY does not exist:
-  - use PRODUCTKEY
-- If PRODUCTCATEGORY does not exist:
-  - use PRODUCTKEY
-- If SALES_TERRITORYKEY does not exist:
-  - NEVER use it
-- If CUSTOMERNAME does not exist:
-  - NEVER use it
-- Prefer PRODUCTKEY as grouping column
-- Prefer SALES_AMOUNT as revenue/sales column
+- If CATEGORY does not exist → use PRODUCTKEY
+- If PRODUCTCATEGORY does not exist → use PRODUCTKEY
+- If SALES_TERRITORYKEY does not exist → NEVER use it
+- If CUSTOMERNAME does not exist → NEVER use it
+- Prefer PRODUCTKEY for grouping
+- Prefer SALES_AMOUNT for metrics
 
 ==================================================
 BUSINESS MAPPINGS
 ==================================================
 
-Interpret these naturally:
-
 - revenue = SALES_AMOUNT
 - sales = SALES_AMOUNT
-- sales amount = SALES_AMOUNT
 - total revenue = SUM(SALES_AMOUNT)
 - total sales = SUM(SALES_AMOUNT)
 
@@ -239,177 +255,101 @@ Interpret these naturally:
 SMART VISUALIZATION LOGIC
 ==================================================
 
-You MUST intelligently decide the visualization type based on:
-- user wording
-- requested format
-- returned dataset structure
-
 --------------------------------------------------
-TABLE DETECTION RULES
+TABLE RULE
 --------------------------------------------------
-
 If user says:
-- "show table"
-- "list"
-- "tabular"
-- "display records"
-- "show rows"
-- "show details"
-- "show data"
-- "give table"
+- show table
+- list
+- display records
+- show data
+- show rows
+- give table
 
-THEN:
-- ALWAYS return:
-  "chartType": "table"
-
-EVEN if chart is also possible.
+→ chartType = "table"
 
 --------------------------------------------------
-METRIC DETECTION RULES
+METRIC RULE
 --------------------------------------------------
-
 If query asks:
 - total sales
 - total revenue
 - count
 - average
 - KPI
-- single value
 
-AND query does NOT request grouping:
-- use:
-  "chartType": "metric"
-
-Metric queries should return:
-- exactly ONE aggregated row
+AND no grouping:
+→ chartType = "metric"
+→ must return single aggregated value
 
 --------------------------------------------------
-BAR CHART RULES
+BAR RULE
 --------------------------------------------------
-
 Use bar chart when:
 - comparing categories
-- top products
-- grouped comparisons
 - rankings
-
-Bar chart SQL MUST return:
-- label column
-- numeric value column
+- grouped values
 
 --------------------------------------------------
-LINE / AREA CHART RULES
+LINE RULE
 --------------------------------------------------
-
-Use line or area chart ONLY IF:
-- valid date column exists
-AND
-- query explicitly asks for:
-  - trend
-  - growth
-  - monthly
-  - yearly
-  - over time
-
-Line chart queries MUST return:
-- x-axis date column
-- numeric value column
-
-If no valid date column exists:
-- fallback to table or grouped bar chart
+Use ONLY when:
+- time-series requested
+- valid single date column exists
+- trend / monthly / yearly / over time
 
 --------------------------------------------------
-PIE / DOUGHNUT RULES
+PIE RULE
 --------------------------------------------------
+Use only when:
+- category + numeric value exists
 
-Use pie/doughnut ONLY IF:
-- label column exists
-- numeric value exists
+Fallback category:
+→ PRODUCTKEY
 
-If requested category columns do NOT exist:
-- use PRODUCTKEY
+==================================================
+DATE FORMATTING RULE (IMPORTANT FIX)
+==================================================
 
-Pie chart SQL MUST return:
-- label column
-- numeric value column
+If user asks:
+- monthly
+- by month
+- trend
+- over time
+- sales date
 
---------------------------------------------------
-AUTO VISUALIZATION RULES
---------------------------------------------------
+ALWAYS USE:
 
-If user does NOT specify chart type:
-- Automatically choose BEST visualization
+TO_CHAR(date_column, 'YYYY-MM') AS MONTH
 
-Examples:
-- single aggregated value → metric
-- grouped comparison → bar
-- time-series → line
-- record listing → table
-- proportional distribution → pie/doughnut
+NEVER USE:
+MONTH(date_column)
+
+If multiple dates exist:
+→ ONLY use SALEDATE unless explicitly requested otherwise
 
 ==================================================
 SQL SAFETY RULES
 ==================================================
 
 - Never generate invalid identifiers
-- Never reference columns absent from schema
 - Never generate GROUP BY without FROM
 - Never generate ORDER BY before GROUP BY
-- Never generate malformed SQL
-- Never generate partial queries
-- LIMIT should be added to grouped outputs
+- Never generate partial SQL
+- Always include LIMIT for grouped results
 
 ==================================================
-DATE DISPLAY RULES
+DUPLICATE AGGREGATION CONTROL (NEW)
 ==================================================
 
-If user asks:
-- by date
-- by month
-- monthly
-- monthly order
-- timeline
-- trend
-- over time
-- sales date
-- ship date
+- If query involves multiple joins or multiple date fields:
+  → assume duplication risk
 
-THEN:
-- ALWAYS return actual formatted dates
-- NEVER return only numeric month values
-
-Use:
-TO_CHAR(date_column, 'YYYY-MM') AS MONTH
-
-Example:
-SELECT
-TO_CHAR(SALEDATE, 'YYYY-MM') AS SALES_MONTH,
-SUM(SALES_AMOUNT) AS TOTAL_SALES
-FROM SALES.SALES_ORDER_DETAIL
-GROUP BY TO_CHAR(SALEDATE, 'YYYY-MM')
-ORDER BY SALES_MONTH
-
-NEVER use:
-MONTH(date_column)
-
-because it returns:
-1,2,3,4...
-
-instead of proper dates.
-
-If both sales date and ship date exist:
-- include BOTH formatted dates
-
-Example:
-SELECT
-TO_CHAR(SALEDATE, 'YYYY-MM') AS SALES_MONTH,
-TO_CHAR(SHIPDATE, 'YYYY-MM') AS SHIP_MONTH,
-SUM(SALES_AMOUNT) AS TOTAL_SALES
-FROM SALES.SALES_ORDER_DETAIL
-GROUP BY
-TO_CHAR(SALEDATE, 'YYYY-MM'),
-TO_CHAR(SHIPDATE, 'YYYY-MM')
-ORDER BY SALES_MONTH, SHIP_MONTH
+- Prevent repeated totals across dimensions by:
+  OPTION 1 (default):
+    → reduce to single date dimension
+  OPTION 2 (advanced):
+    → use subquery with DISTINCT before aggregation
 
 ==================================================
 VALID CHART TYPES
@@ -425,33 +365,14 @@ table
 metric
 
 ==================================================
-VALID EXAMPLES
+AUTO VISUALIZATION RULES
 ==================================================
 
-Example 1:
-SELECT SUM(SALES_AMOUNT) AS TOTAL_SALES
-FROM SALES.SALES_ORDER_DETAIL
-
-Example 2:
-SELECT PRODUCTKEY, SUM(SALES_AMOUNT) AS TOTAL_SALES
-FROM SALES.SALES_ORDER_DETAIL
-GROUP BY PRODUCTKEY
-ORDER BY TOTAL_SALES DESC
-LIMIT 10
-
-Example 3:
-SELECT PRODUCTKEY, SUM(SALES_AMOUNT) AS TOTAL_SALES
-FROM SALES.SALES_ORDER_DETAIL
-GROUP BY PRODUCTKEY
-ORDER BY TOTAL_SALES DESC
-LIMIT 5
-
-Example 4:
-SELECT PRODUCTKEY, SUM(SALES_AMOUNT) AS TOTAL_SALES
-FROM SALES.SALES_ORDER_DETAIL
-GROUP BY PRODUCTKEY
-ORDER BY TOTAL_SALES DESC
-LIMIT 8
+- single value → metric
+- grouped comparison → bar
+- time-series → line
+- records → table
+- proportions → pie/doughnut
 
 ==================================================
 RETURN FORMAT
@@ -469,7 +390,6 @@ RETURN FORMAT
     "description": "Description"
   }
 }
-`;
 
     try {
 
