@@ -159,79 +159,222 @@ AVAILABLE TABLES:
 ${schemaDescription}
 
 YOUR TASK:
-1. Generate valid Snowflake SQL
-2. Suggest the best chart type
-3. Return ONLY valid JSON
+1. Generate VALID Snowflake SQL
+2. Automatically choose the BEST visualization
+3. Return ONLY valid raw JSON
 
-IMPORTANT:
-- ONLY use columns that exist in AVAILABLE TABLES
+==================================================
+STRICT SQL + SCHEMA RULES
+==================================================
+
+- ONLY use tables and columns that exist in AVAILABLE TABLES
 - NEVER invent column names
 - NEVER invent table aliases
-- NEVER use columns that are not present in schema
+- NEVER use columns not present in schema
+- NEVER assume relationships between tables
+- NEVER reference invalid identifiers
+- NEVER generate incomplete SQL
+- NEVER omit FROM clause
+- EVERY SELECT query MUST contain a FROM clause
+- GROUP BY can only appear AFTER FROM
+- ORDER BY can only appear AFTER GROUP BY or SELECT
+- Aggregations like SUM() require GROUP BY for non-aggregated columns
+- Use ONLY Snowflake SQL syntax
+- Use fully qualified table names
+- Add LIMIT for grouped/chart queries
+- Return ONLY raw JSON
+- Never explain anything
+- Never return markdown
+
+==================================================
+STRICT DATE RULES
+==================================================
+
 - NEVER use SHIPDATEKEY unless it exists
 - NEVER use ORDERDATE unless it exists
 - NEVER use DATE columns unless they exist in schema
-- If no date column exists, DO NOT generate time-series queries
-- If user asks for trend/growth over time but no date column exists:
-  - return a table chart instead
-  - or group by PRODUCTKEY
-- Always use fully qualified table names
-- Every SELECT query MUST contain a FROM clause
-- GROUP BY can only be used after FROM
-- Aggregations like SUM() require GROUP BY for non-aggregated columns
-- Use Snowflake SQL syntax
-- Add LIMIT where appropriate
-- Never return markdown
-- Never explain anything
-- Return ONLY raw JSON
+- Before generating time-series SQL:
+  - VERIFY the date column exists
+- If no valid date column exists:
+  - DO NOT generate trend/time-series queries
+  - DO NOT generate line charts
+  - fallback to table or grouped bar chart
+- NEVER guess date fields
 
-STRICT COLUMN RULES:
-- Before generating SQL, verify every column exists in AVAILABLE TABLES
+==================================================
+STRICT COLUMN VALIDATION RULES
+==================================================
+
+Before generating SQL:
+- Verify EVERY column exists in AVAILABLE TABLES
+
+If requested columns do NOT exist:
+- fallback intelligently
+
+Fallback rules:
 - If CATEGORY does not exist:
-  - use PRODUCTKEY instead
-- If SALES_TERRITORYKEY does not exist:
-  - NEVER use it
+  - use PRODUCTKEY
 - If PRODUCTCATEGORY does not exist:
+  - use PRODUCTKEY
+- If SALES_TERRITORYKEY does not exist:
   - NEVER use it
 - If CUSTOMERNAME does not exist:
   - NEVER use it
 - Prefer PRODUCTKEY as grouping column
-- Prefer SALES_AMOUNT as revenue column
-- Never guess schema relationships
+- Prefer SALES_AMOUNT as revenue/sales column
 
-COMMON BUSINESS MAPPINGS:
+==================================================
+BUSINESS MAPPINGS
+==================================================
+
+Interpret these naturally:
+
 - revenue = SALES_AMOUNT
 - sales = SALES_AMOUNT
+- sales amount = SALES_AMOUNT
 - total revenue = SUM(SALES_AMOUNT)
 - total sales = SUM(SALES_AMOUNT)
 
-CHART RULES:
-- metric charts should return a single aggregated value
-- bar charts MUST return at least 2 columns
-- line charts MUST return x-axis + y-axis columns
-- pie charts MUST return label + numeric value
-- doughnut charts MUST return label + numeric value
-- if user asks for a chart with only one metric:
-  - group by PRODUCTKEY
-  - or another available dimension column
-- prefer PRODUCTKEY for grouping if no category exists
-- if pie chart requested and no category column exists:
-  - use PRODUCTKEY
+==================================================
+SMART VISUALIZATION LOGIC
+==================================================
 
-SQL RULES:
-- Every SELECT query MUST contain a FROM clause
-- GROUP BY can only appear after FROM
-- ORDER BY can only appear after GROUP BY or SELECT
-- LIMIT should be added for grouped/chart queries
-- Never generate incomplete SQL
-- Never omit FROM clause
+You MUST intelligently decide the visualization type based on:
+- user wording
+- requested format
+- returned dataset structure
+
+--------------------------------------------------
+TABLE DETECTION RULES
+--------------------------------------------------
+
+If user says:
+- "show table"
+- "list"
+- "tabular"
+- "display records"
+- "show rows"
+- "show details"
+- "show data"
+- "give table"
+
+THEN:
+- ALWAYS return:
+  "chartType": "table"
+
+EVEN if chart is also possible.
+
+--------------------------------------------------
+METRIC DETECTION RULES
+--------------------------------------------------
+
+If query asks:
+- total sales
+- total revenue
+- count
+- average
+- KPI
+- single value
+
+AND query does NOT request grouping:
+- use:
+  "chartType": "metric"
+
+Metric queries should return:
+- exactly ONE aggregated row
+
+--------------------------------------------------
+BAR CHART RULES
+--------------------------------------------------
+
+Use bar chart when:
+- comparing categories
+- top products
+- grouped comparisons
+- rankings
+
+Bar chart SQL MUST return:
+- label column
+- numeric value column
+
+--------------------------------------------------
+LINE / AREA CHART RULES
+--------------------------------------------------
+
+Use line or area chart ONLY IF:
+- valid date column exists
+AND
+- query explicitly asks for:
+  - trend
+  - growth
+  - monthly
+  - yearly
+  - over time
+
+Line chart queries MUST return:
+- x-axis date column
+- numeric value column
+
+If no valid date column exists:
+- fallback to table or grouped bar chart
+
+--------------------------------------------------
+PIE / DOUGHNUT RULES
+--------------------------------------------------
+
+Use pie/doughnut ONLY IF:
+- label column exists
+- numeric value exists
+
+If requested category columns do NOT exist:
+- use PRODUCTKEY
+
+Pie chart SQL MUST return:
+- label column
+- numeric value column
+
+--------------------------------------------------
+AUTO VISUALIZATION RULES
+--------------------------------------------------
+
+If user does NOT specify chart type:
+- Automatically choose BEST visualization
+
+Examples:
+- single aggregated value → metric
+- grouped comparison → bar
+- time-series → line
+- record listing → table
+- proportional distribution → pie/doughnut
+
+==================================================
+SQL SAFETY RULES
+==================================================
+
 - Never generate invalid identifiers
-- Never reference columns not found in schema
+- Never reference columns absent from schema
+- Never generate GROUP BY without FROM
+- Never generate ORDER BY before GROUP BY
+- Never generate malformed SQL
+- Never generate partial queries
+- LIMIT should be added to grouped outputs
 
-VALID CHART TYPES:
-bar, line, pie, doughnut, area, scatter, table, metric
+==================================================
+VALID CHART TYPES
+==================================================
 
-VALID EXAMPLES:
+bar
+line
+pie
+doughnut
+area
+scatter
+table
+metric
+
+==================================================
+VALID EXAMPLES
+==================================================
 
 Example 1:
 SELECT SUM(SALES_AMOUNT) AS TOTAL_SALES
@@ -258,7 +401,10 @@ GROUP BY PRODUCTKEY
 ORDER BY TOTAL_SALES DESC
 LIMIT 8
 
-RETURN FORMAT:
+==================================================
+RETURN FORMAT
+==================================================
+
 {
   "sql": "SELECT ...",
   "chartType": "bar",
