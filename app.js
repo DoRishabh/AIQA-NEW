@@ -360,6 +360,58 @@ SQL SAFETY RULES
 - LIMIT should be added to grouped outputs
 
 ==================================================
+DATE DISPLAY RULES
+==================================================
+
+If user asks:
+- by date
+- by month
+- monthly
+- monthly order
+- timeline
+- trend
+- over time
+- sales date
+- ship date
+
+THEN:
+- ALWAYS return actual formatted dates
+- NEVER return only numeric month values
+
+Use:
+TO_CHAR(date_column, 'YYYY-MM') AS MONTH
+
+Example:
+SELECT
+TO_CHAR(SALEDATE, 'YYYY-MM') AS SALES_MONTH,
+SUM(SALES_AMOUNT) AS TOTAL_SALES
+FROM SALES.SALES_ORDER_DETAIL
+GROUP BY TO_CHAR(SALEDATE, 'YYYY-MM')
+ORDER BY SALES_MONTH
+
+NEVER use:
+MONTH(date_column)
+
+because it returns:
+1,2,3,4...
+
+instead of proper dates.
+
+If both sales date and ship date exist:
+- include BOTH formatted dates
+
+Example:
+SELECT
+TO_CHAR(SALEDATE, 'YYYY-MM') AS SALES_MONTH,
+TO_CHAR(SHIPDATE, 'YYYY-MM') AS SHIP_MONTH,
+SUM(SALES_AMOUNT) AS TOTAL_SALES
+FROM SALES.SALES_ORDER_DETAIL
+GROUP BY
+TO_CHAR(SALEDATE, 'YYYY-MM'),
+TO_CHAR(SHIPDATE, 'YYYY-MM')
+ORDER BY SALES_MONTH, SHIP_MONTH
+
+==================================================
 VALID CHART TYPES
 ==================================================
 
