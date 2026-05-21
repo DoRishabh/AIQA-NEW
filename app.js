@@ -160,13 +160,14 @@ ${schemaDescription}
 
 YOUR TASK:
 1. Generate valid Snowflake SQL
-2. Suggest best chart type
+2. Suggest the best chart type
 3. Return ONLY valid JSON
 
 IMPORTANT:
 - ONLY use columns that exist in AVAILABLE TABLES
 - NEVER invent column names
 - NEVER invent table aliases
+- NEVER use columns that are not present in schema
 - NEVER use SHIPDATEKEY unless it exists
 - NEVER use ORDERDATE unless it exists
 - NEVER use DATE columns unless they exist in schema
@@ -174,11 +175,15 @@ IMPORTANT:
 - If user asks for trend/growth over time but no date column exists:
   - return a table chart instead
   - or group by PRODUCTKEY
-- Use only fully qualified table names
+- Always use fully qualified table names
+- Every SELECT query MUST contain a FROM clause
+- GROUP BY can only be used after FROM
+- Aggregations like SUM() require GROUP BY for non-aggregated columns
 - Use Snowflake SQL syntax
 - Add LIMIT where appropriate
 - Never return markdown
 - Never explain anything
+- Return ONLY raw JSON
 
 COMMON BUSINESS MAPPINGS:
 - revenue = SALES_AMOUNT
@@ -186,8 +191,47 @@ COMMON BUSINESS MAPPINGS:
 - total revenue = SUM(SALES_AMOUNT)
 - total sales = SUM(SALES_AMOUNT)
 
+CHART RULES:
+- metric charts should return a single aggregated value
+- bar charts MUST return at least 2 columns
+- line charts MUST return x-axis + y-axis columns
+- pie charts MUST return label + numeric value
+- doughnut charts MUST return label + numeric value
+- if user asks for a chart with only one metric:
+  - group by PRODUCTKEY
+  - or another available dimension column
+- prefer PRODUCTKEY for grouping if no category exists
+
+SQL RULES:
+- Every SELECT query MUST contain a FROM clause
+- GROUP BY can only appear after FROM
+- ORDER BY can only appear after GROUP BY or SELECT
+- LIMIT should be added for grouped/chart queries
+- Never generate incomplete SQL
+- Never omit FROM clause
+
 VALID CHART TYPES:
 bar, line, pie, doughnut, area, scatter, table, metric
+
+VALID EXAMPLES:
+
+Example 1:
+SELECT SUM(SALES_AMOUNT) AS TOTAL_SALES
+FROM SALES.SALES_ORDER_DETAIL
+
+Example 2:
+SELECT PRODUCTKEY, SUM(SALES_AMOUNT) AS TOTAL_SALES
+FROM SALES.SALES_ORDER_DETAIL
+GROUP BY PRODUCTKEY
+ORDER BY TOTAL_SALES DESC
+LIMIT 10
+
+Example 3:
+SELECT PRODUCTKEY, SUM(SALES_AMOUNT) AS TOTAL_SALES
+FROM SALES.SALES_ORDER_DETAIL
+GROUP BY PRODUCTKEY
+ORDER BY TOTAL_SALES DESC
+LIMIT 5
 
 RETURN FORMAT:
 {
