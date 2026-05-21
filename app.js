@@ -185,6 +185,20 @@ IMPORTANT:
 - Never explain anything
 - Return ONLY raw JSON
 
+STRICT COLUMN RULES:
+- Before generating SQL, verify every column exists in AVAILABLE TABLES
+- If CATEGORY does not exist:
+  - use PRODUCTKEY instead
+- If SALES_TERRITORYKEY does not exist:
+  - NEVER use it
+- If PRODUCTCATEGORY does not exist:
+  - NEVER use it
+- If CUSTOMERNAME does not exist:
+  - NEVER use it
+- Prefer PRODUCTKEY as grouping column
+- Prefer SALES_AMOUNT as revenue column
+- Never guess schema relationships
+
 COMMON BUSINESS MAPPINGS:
 - revenue = SALES_AMOUNT
 - sales = SALES_AMOUNT
@@ -201,6 +215,8 @@ CHART RULES:
   - group by PRODUCTKEY
   - or another available dimension column
 - prefer PRODUCTKEY for grouping if no category exists
+- if pie chart requested and no category column exists:
+  - use PRODUCTKEY
 
 SQL RULES:
 - Every SELECT query MUST contain a FROM clause
@@ -209,6 +225,8 @@ SQL RULES:
 - LIMIT should be added for grouped/chart queries
 - Never generate incomplete SQL
 - Never omit FROM clause
+- Never generate invalid identifiers
+- Never reference columns not found in schema
 
 VALID CHART TYPES:
 bar, line, pie, doughnut, area, scatter, table, metric
@@ -232,6 +250,13 @@ FROM SALES.SALES_ORDER_DETAIL
 GROUP BY PRODUCTKEY
 ORDER BY TOTAL_SALES DESC
 LIMIT 5
+
+Example 4:
+SELECT PRODUCTKEY, SUM(SALES_AMOUNT) AS TOTAL_SALES
+FROM SALES.SALES_ORDER_DETAIL
+GROUP BY PRODUCTKEY
+ORDER BY TOTAL_SALES DESC
+LIMIT 8
 
 RETURN FORMAT:
 {
