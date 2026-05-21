@@ -204,6 +204,27 @@ DUPLICATE SAFETY RULE (CRITICAL FIX)
   → MUST NOT produce duplicated totals across groups
   → MUST validate aggregation integrity
 
+
+  ==================================================
+CRITICAL FIX: MULTI-DATE GROUPING RULE
+==================================================
+
+- NEVER group by SALEDATE and SHIPDATE together by default
+
+- If user asks:
+  "total sales", "monthly sales", "trend"
+    → USE ONLY SALEDATE
+
+- If user explicitly asks:
+  "compare sales vs shipping"
+    → THEN allow both dates
+
+- If two date columns are used:
+    → MUST clarify analytical intent OR split into 2 queries
+
+- DEFAULT BEHAVIOR:
+    → SINGLE DATE DIMENSION ONLY
+
 ==================================================
 STRICT DATE RULES
 ==================================================
